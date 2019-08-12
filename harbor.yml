@@ -1,0 +1,112 @@
+---
+# file: harbor.yml
+- hosts: harbor
+  remote_user: ubuntu
+  become: true
+  become_user: root
+  vars:
+    ansible_ssh_private_key_file: "~/.ssh/id_rsa-terraform_harbor"
+  vars_files:
+    - vars.yml
+  tasks:
+
+  - name: Add docker apt signing key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg 
+      state: present
+  - name: Add docker repository
+    apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+  - name: Add Let's Encrypt repository
+    apt_repository:
+      repo: ppa:certbot/certbot  
+  - name: Install aptitude and unzip packages 
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: true
+    vars:
+      packages:
+      - aptitude
+      - docker-ce
+      - certbot
+  - name: Download docker-compose
+    get_url:
+      url: https://github.com/docker/compose/releases/download/1.21.2/docker-compose-Linux-x86_64
+      dest: /usr/local/bin/docker-compose
+      mode: '0755'
+  - name: Ensure harbor_fqdn ip address matches external IP address before moving on
+    shell: host {{ harbor_fqdn }} | awk '{print $NF}'
+    register: harbor_fqdn_ip
+    failed_when: harbor_fqdn_ip.stdout != ansible_ssh_host
+  - name: Create Let's Encrypt certificate
+    shell: certbot certonly --standalone --preferred-challenges http --non-interactive  --staple-ocsp --agree-tos -m {{ certbot_admin_email }} -d {{ harbor_fqdn }}
+    args:
+      creates: /etc/letsencrypt/live/{{ harbor_fqdn }}/privkey.pem
+  - name: Create Let's Encrypt certificate
+    shell: cp /etc/letsencrypt/live/{{ harbor_fqdn }}/privkey.pem /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key 
+    args:
+      creates: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+  - name: Create /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+    shell: cp /etc/letsencrypt/live/{{ harbor_fqdn }}/privkey.pem /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+    args:
+      creates: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+  - name: Create /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
+    shell: cat /etc/letsencrypt/live/{{ harbor_fqdn }}/cert.pem /etc/letsencrypt/live/{{ harbor_fqdn }}/chain.pem > /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
+    args:
+      creates: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
+  - name: Change permissions on /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
+    file:
+      path: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
+      owner: ubuntu
+      group: ubuntu
+      mode: '777'
+  - name: Change permissions on /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+    file:
+      path: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+      owner: ubuntu
+      group: ubuntu
+      mode: '777'
+  - name: Download harbor-online-installer-v1.8.1.tgz
+    get_url:
+      url: https://storage.googleapis.com/harbor-releases/release-1.8.0/harbor-online-installer-v1.8.1.tgz 
+      dest: /home/ubuntu/harbor-online-installer-v1.8.1.tgz
+      mode: '0440'
+  - name: Extract harbor-online-installer-v1.8.1.tgz
+    unarchive:
+      src: /home/ubuntu/harbor-online-installer-v1.8.1.tgz
+      dest: /home/ubuntu/
+      remote_src: yes
+  - name: Run /harbor/prepare script 
+    shell: cd /home/ubuntu/harbor && bash ./prepare 
+    args:
+      creates: /home/ubuntu/harbor/harbor.yml 
+  - name: update hostname in /harbor/harbor.yml 
+    lineinfile:
+      path: /home/ubuntu/harbor/harbor.yml
+      regexp: '^hostname: '
+      line: "hostname: {{ harbor_fqdn }}"
+  - name: update harbor_admin_password in /harbor/harbor.yml
+    lineinfile:
+      path: /home/ubuntu/harbor/harbor.yml
+      regexp: '^harbor_admin_password: '
+      line: "harbor_admin_password: {{ admin_password }}"
+  - name: update database password in /harbor/harbor.yml
+    lineinfile:
+      path: /home/ubuntu/harbor/harbor.yml
+      regexp: '^  password:'
+      line: "  password: {{ db_password }}"
+  - name: add https block to /harbor/harbor.yml 
+    blockinfile:
+      path: /home/ubuntu/harbor/harbor.yml
+      insertafter: "  port: 80"
+      block: |
+        https:
+          port: 443
+          certificate: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
+          private_key: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+  - name: Run /harbor/install.sh script
+    shell: cd /home/ubuntu/harbor && bash ./install.sh
+    #    args:
+    #  creates: /home/ubuntu/harbor/harbor.yml

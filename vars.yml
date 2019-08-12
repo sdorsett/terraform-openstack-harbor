@@ -1,0 +1,6 @@
+---
+# vars.yml
+harbor_fqdn: harbor.example.com
+certbot_admin_email: no.body@gmail.com
+admin_password: MySup3rS3cr3tP@ssword
+db_password: MyCompl3xDbP@ssword
