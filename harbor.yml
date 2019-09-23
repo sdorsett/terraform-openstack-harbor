@@ -68,14 +68,14 @@
       owner: ubuntu
       group: ubuntu
       mode: '777'
-  - name: Download harbor-online-installer-v1.8.1.tgz
+  - name: Download harbor-online-installer-v1.9.0.tgz
     get_url:
-      url: https://storage.googleapis.com/harbor-releases/release-1.8.0/harbor-online-installer-v1.8.1.tgz 
-      dest: /home/ubuntu/harbor-online-installer-v1.8.1.tgz
+      url: https://storage.googleapis.com/harbor-releases/release-1.9.0/harbor-online-installer-v1.9.0.tgz 
+      dest: /home/ubuntu/harbor-online-installer-v1.9.0.tgz
       mode: '0440'
-  - name: Extract harbor-online-installer-v1.8.1.tgz
+  - name: Extract harbor-online-installer-v1.9.0.tgz
     unarchive:
-      src: /home/ubuntu/harbor-online-installer-v1.8.1.tgz
+      src: /home/ubuntu/harbor-online-installer-v1.9.0.tgz
       dest: /home/ubuntu/
       remote_src: yes
   - name: Run /harbor/prepare script 
