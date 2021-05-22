@@ -1,5 +1,5 @@
 resource "openstack_compute_keypair_v2" "deploy-keypair" {
-  name       = "deploy-keypair"
+  name       = "terraform-deploy-keypair"
   public_key = "${file(var.public_key)}"
 }
 

@@ -1,9 +1,9 @@
 variable "private_key" {
-  default = "~/.ssh/id_rsa-terraform_harbor"
+  default = "~/.ssh/id_rsa"
 }
 
 variable "public_key" {
-  default = "~/.ssh/id_rsa-terraform_harbor.pub"
+  default = "~/.ssh/id_rsa.pub"
 }
 
 variable "ssh_user" {

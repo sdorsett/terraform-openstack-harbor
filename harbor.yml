@@ -5,7 +5,7 @@
   become: true
   become_user: root
   vars:
-    ansible_ssh_private_key_file: "~/.ssh/id_rsa-terraform_harbor"
+    ansible_ssh_private_key_file: "~/.ssh/id_rsa"
   vars_files:
     - vars.yml
   tasks:
@@ -16,11 +16,8 @@
       state: present
   - name: Add docker repository
     apt_repository:
-      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      repo: deb https://download.docker.com/linux/ubuntu groovy stable
       state: present
-  - name: Add Let's Encrypt repository
-    apt_repository:
-      repo: ppa:certbot/certbot  
   - name: Install aptitude and unzip packages 
     apt:
       name: "{{ packages }}"
@@ -70,18 +67,27 @@
       mode: '777'
   - name: Download harbor-online-installer-v1.9.0.tgz
     get_url:
-      url: https://storage.googleapis.com/harbor-releases/release-1.9.0/harbor-online-installer-v1.9.0.tgz 
-      dest: /home/ubuntu/harbor-online-installer-v1.9.0.tgz
+      url: https://github.com/goharbor/harbor/releases/download/v2.2.2/harbor-online-installer-v2.2.2.tgz 
+      dest: /home/ubuntu/harbor-online-installer-v2.2.2.tgz
       mode: '0440'
-  - name: Extract harbor-online-installer-v1.9.0.tgz
+    become: false
+  - name: Extract harbor-online-installer-v2.2.2.tgz
     unarchive:
-      src: /home/ubuntu/harbor-online-installer-v1.9.0.tgz
+      src: /home/ubuntu/harbor-online-installer-v2.2.2.tgz
       dest: /home/ubuntu/
       remote_src: yes
-  - name: Run /harbor/prepare script 
-    shell: cd /home/ubuntu/harbor && bash ./prepare 
+    become: false
+  - name: Change permissions on /home/ubuntu/harbor/input/ 
+    file:
+      path: /home/ubuntu/harbor/input/
+      owner: ubuntu
+      group: ubuntu
+      recurse: yes
+  - name: Copy /home/ubuntu/harbor/harbor.yml.tmpl /home/ubuntu/harbor/harbor.yml 
+    shell: cp /home/ubuntu/harbor/harbor.yml.tmpl /home/ubuntu/harbor/harbor.yml 
     args:
-      creates: /home/ubuntu/harbor/harbor.yml 
+      creates: /home/ubuntu/harbor/harbor.yml
+    become: false
   - name: update hostname in /harbor/harbor.yml 
     lineinfile:
       path: /home/ubuntu/harbor/harbor.yml
@@ -97,15 +103,20 @@
       path: /home/ubuntu/harbor/harbor.yml
       regexp: '^  password:'
       line: "  password: {{ db_password }}"
-  - name: add https block to /harbor/harbor.yml 
-    blockinfile:
+  - name: update certificate in /harbor/harbor.yml
+    lineinfile:
       path: /home/ubuntu/harbor/harbor.yml
-      insertafter: "  port: 80"
-      block: |
-        https:
-          port: 443
-          certificate: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt
-          private_key: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key
+      regexp: '^  certificate: '
+      line: "  certificate: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.crt"
+  - name: update database password in /harbor/harbor.yml
+    lineinfile:
+      path: /home/ubuntu/harbor/harbor.yml
+      regexp: '^  private_key: '
+      line: "  private_key: /etc/letsencrypt/live/{{ harbor_fqdn }}/{{ harbor_fqdn }}.key"
+  - name: Run /harbor/prepare script
+    shell: cd /home/ubuntu/harbor && bash ./prepare
+    args:
+      creates: /home/ubuntu/harbor/harbor.yml
   - name: Run /harbor/install.sh script
     shell: cd /home/ubuntu/harbor && bash ./install.sh
     #    args:
