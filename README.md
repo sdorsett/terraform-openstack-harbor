@@ -1,6 +1,6 @@
 # terraform-openstack-harbor
 
-Terraform playbook for deploying harbor docker repository on openstack. 
+Terraform playbook for deploying harbor docker repository on openstack. Tested with terraform v0.15.4.
 
 https://goharbor.io/
 
